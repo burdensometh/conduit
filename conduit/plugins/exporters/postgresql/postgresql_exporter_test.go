@@ -87,6 +87,23 @@ func TestReceiveAddBlockSuccess(t *testing.T) {
 	assert.NoError(t, pgsqlExp.Receive(block))
 }
 
+// TestReceiveRejectsAnonymizedBlock verifies that transformed data, which no
+// longer describes the real ledger, is refused rather than written.
+func TestReceiveRejectsAnonymizedBlock(t *testing.T) {
+	pgsqlExp := pgsqlConstructor.New()
+	cfg := plugins.MakePluginConfig("test: true")
+	require.NoError(t, pgsqlExp.Init(context.Background(), conduit.MakePipelineInitProvider(&round, &sdk.Genesis{}, nil), cfg, logger))
+
+	block := data.BlockData{
+		BlockHeader: sdk.BlockHeader{},
+		Payset:      sdk.Payset{},
+		Delta:       &sdk.LedgerStateDelta{},
+		Anonymized:  true,
+	}
+	err := pgsqlExp.Receive(block)
+	assert.ErrorIs(t, err, errAnonymizedData)
+}
+
 func TestPostgresqlExporterInit(t *testing.T) {
 	pgsqlExp := pgsqlConstructor.New()
 	cfg := plugins.MakePluginConfig("test: true")

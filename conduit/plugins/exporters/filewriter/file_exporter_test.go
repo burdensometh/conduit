@@ -263,3 +263,33 @@ func TestDropCertificate(t *testing.T) {
 		require.Nil(t, blockData.Certificate)
 	}
 }
+
+// TestAnonymizedMarker verifies that transformed data causes the marker file to
+// be written, and that ordinary data does not.
+func TestAnonymizedMarker(t *testing.T) {
+	rnd := sdk.Round(0)
+
+	writeOne := func(t *testing.T, anonymized bool) string {
+		tempdir := t.TempDir()
+		fileExp := fileCons.New()
+		pcfg := plugins.MakePluginConfig(fmt.Sprintf("block-dir: %s", tempdir))
+		require.NoError(t, fileExp.Init(context.Background(), conduit.MakePipelineInitProvider(&rnd, nil, nil), pcfg, logger))
+		require.NoError(t, fileExp.Receive(data.BlockData{
+			BlockHeader: sdk.BlockHeader{Round: 0},
+			Anonymized:  anonymized,
+		}))
+		require.NoError(t, fileExp.Close())
+		return tempdir
+	}
+
+	t.Run("anonymized", func(t *testing.T) {
+		dir := writeOne(t, true)
+		require.FileExists(t, path.Join(dir, AnonymizedMarkerFilename))
+	})
+
+	t.Run("original", func(t *testing.T) {
+		dir := writeOne(t, false)
+		_, err := os.Stat(path.Join(dir, AnonymizedMarkerFilename))
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+}

@@ -11,6 +11,7 @@ type PipelineInitProvider struct {
 	currentRound    *sdk.Round
 	genesis         *sdk.Genesis
 	telemetryClient telemetry.Client
+	anonymized      bool
 }
 
 // MakePipelineInitProvider constructs an init provider.
@@ -40,4 +41,16 @@ func (a *PipelineInitProvider) NextDBRound() sdk.Round {
 // GetTelemetryClient gets the telemetry state in the init provider
 func (a *PipelineInitProvider) GetTelemetryClient() telemetry.Client {
 	return a.telemetryClient
+}
+
+// IsAnonymized reports whether the data entering the pipeline is already
+// transformed (see data.AnonymizedProvider).
+func (a *PipelineInitProvider) IsAnonymized() bool {
+	return a.anonymized
+}
+
+// SetAnonymized records whether the data entering the pipeline is already
+// transformed (see data.AnonymizedSetter).
+func (a *PipelineInitProvider) SetAnonymized(anonymized bool) {
+	a.anonymized = anonymized
 }

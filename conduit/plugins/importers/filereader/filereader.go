@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed" // used to embed config
 	"fmt"
+	"os"
 	"path"
 	"time"
 
@@ -21,12 +22,13 @@ import (
 const PluginName = "file_reader"
 
 type fileReader struct {
-	logger *logrus.Logger
-	cfg    Config
-	gzip   bool
-	format filewriter.EncodingFormat
-	ctx    context.Context
-	cancel context.CancelFunc
+	logger     *logrus.Logger
+	cfg        Config
+	gzip       bool
+	format     filewriter.EncodingFormat
+	ctx        context.Context
+	cancel     context.CancelFunc
+	anonymized bool
 }
 
 // package-wide init function
@@ -55,7 +57,7 @@ func (r *fileReader) Metadata() plugins.Metadata {
 	return metadata
 }
 
-func (r *fileReader) Init(ctx context.Context, _ data.InitProvider, cfg plugins.PluginConfig, logger *logrus.Logger) error {
+func (r *fileReader) Init(ctx context.Context, initProvider data.InitProvider, cfg plugins.PluginConfig, logger *logrus.Logger) error {
 	r.ctx, r.cancel = context.WithCancel(ctx)
 	r.logger = logger
 	err := cfg.UnmarshalConfig(&r.cfg)
@@ -69,6 +71,17 @@ func (r *fileReader) Init(ctx context.Context, _ data.InitProvider, cfg plugins.
 	r.format, r.gzip, err = filewriter.ParseFilenamePattern(r.cfg.FilenamePattern)
 	if err != nil {
 		return fmt.Errorf("Init() error: %w", err)
+	}
+
+	// Detect whether this directory holds transformed data. Without this, a
+	// pipeline that reads anonymized files and re-runs the anonymizer would
+	// remap the pseudonyms and double-transform the dataset.
+	if _, statErr := os.Stat(path.Join(r.cfg.BlocksDir, filewriter.AnonymizedMarkerFilename)); statErr == nil {
+		r.anonymized = true
+		r.logger.Infof("Block directory %s contains transformed (anonymized) data", r.cfg.BlocksDir)
+	}
+	if setter, ok := initProvider.(data.AnonymizedSetter); ok {
+		setter.SetAnonymized(r.anonymized)
 	}
 
 	return nil
@@ -104,6 +117,12 @@ func (r *fileReader) GetBlock(rnd uint64) (data.BlockData, error) {
 	err := filewriter.DecodeFromFile(filename, &blockData, r.format, r.gzip)
 	if err != nil {
 		return data.BlockData{}, fmt.Errorf("GetBlock(): unable to read block file '%s': %w", filename, err)
+	}
+	// Keep the transformed marker authoritative for data read back from a
+	// directory the file_writer marked as anonymized, even if a per-block flag
+	// is missing.
+	if r.anonymized {
+		blockData.Anonymized = true
 	}
 	r.logger.Infof("Block %d read time: %s", rnd, time.Since(start))
 	return blockData, nil

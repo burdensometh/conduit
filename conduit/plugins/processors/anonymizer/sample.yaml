@@ -1,0 +1,16 @@
+name: anonymizer
+config:
+    # A fixed secret used to derive stable pseudonymous addresses. Every run
+    # with the same key maps the same address to the same pseudonym.
+    # Either dataset-key or dataset-key-file must be set, not both.
+    dataset-key: "change-me-to-a-long-random-secret"
+
+    # Alternative to dataset-key: read the key from a file (recommended so the
+    # secret does not live in the config file).
+    #dataset-key-file: "/path/to/dataset.key"
+
+    # Restrict which address-typed fields are anonymized. When omitted, every
+    # address field is anonymized.
+    #roles:
+    #    - sender
+    #    - receiver

@@ -27,6 +27,7 @@ import (
 const PluginName = "postgresql"
 
 var errMissingDelta = errors.New("ledger state delta is missing from block, ensure algod importer is using 'follower' mode")
+var errAnonymizedData = errors.New("refusing to write anonymized block data: the postgresql exporter rebuilds ledger state from the block, which requires the original signatures and an unmodified ledger state delta")
 
 type postgresqlExporter struct {
 	round  uint64
@@ -155,6 +156,11 @@ func (exp *postgresqlExporter) Close() error {
 }
 
 func (exp *postgresqlExporter) Receive(exportData data.BlockData) error {
+	// Transformed (anonymized) data has rewritten addresses; consuming it would
+	// silently corrupt the ledger, so fail loudly instead.
+	if exportData.Anonymized {
+		return errAnonymizedData
+	}
 	if exportData.Delta == nil {
 		if exportData.Round() == 0 {
 			exportData.Delta = &sdk.LedgerStateDelta{}

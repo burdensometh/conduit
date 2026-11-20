@@ -21,6 +21,21 @@ type InitProvider interface {
 	GetTelemetryClient() telemetry.Client
 }
 
+// AnonymizedProvider is an optional interface an InitProvider may implement. It
+// reports whether the data entering the pipeline was already transformed (for
+// example a dataset previously written by the anonymizer). Importers that can
+// detect transformed input expose it here so processors do not transform it a
+// second time.
+type AnonymizedProvider interface {
+	IsAnonymized() bool
+}
+
+// AnonymizedSetter is the optional setter counterpart to AnonymizedProvider,
+// used by importers to mark their source as already transformed.
+type AnonymizedSetter interface {
+	SetAnonymized(bool)
+}
+
 // BlockData is provided to the Exporter on each round.
 type BlockData struct {
 
@@ -35,6 +50,15 @@ type BlockData struct {
 
 	// Certificate contains voting data that certifies the block. The certificate is non deterministic, a node stops collecting votes once the voting threshold is reached.
 	Certificate *map[string]interface{} `json:"cert,omitempty"`
+
+	// Anonymized marks this block as transformed data: irreversible processor plugins
+	// (for example the anonymizer) replace address values, so the payload no longer
+	// corresponds to the ledger it was imported from. Signatures in the payset no longer
+	// verify against the anonymized transactions and the ledger state delta no longer
+	// describes the real ledger, so exporters that require either must refuse to consume
+	// the data. The flag is carried through the file exporter/importer to prevent
+	// transformed data from being mistaken for, or replayed as, original data.
+	Anonymized bool `json:"anonymized,omitempty"`
 }
 
 // Round returns the round to which the BlockData corresponds

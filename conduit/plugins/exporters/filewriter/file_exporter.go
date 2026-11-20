@@ -24,14 +24,21 @@ const (
 
 	// GenesisFilename is the name of the genesis file.
 	GenesisFilename = "genesis.json"
+
+	// AnonymizedMarkerFilename is written next to the block files when the
+	// exported data was transformed (for example by the anonymizer). Its
+	// presence tells the file_reader importer that the directory does not
+	// contain original ledger data.
+	AnonymizedMarkerFilename = "anonymized.json"
 )
 
 type fileExporter struct {
-	round  uint64
-	cfg    Config
-	gzip   bool
-	format EncodingFormat
-	logger *logrus.Logger
+	round                   uint64
+	cfg                     Config
+	gzip                    bool
+	format                  EncodingFormat
+	logger                  *logrus.Logger
+	anonymizedMarkerWritten bool
 }
 
 //go:embed sample.yaml
@@ -104,6 +111,17 @@ func (exp *fileExporter) Receive(exportData data.BlockData) error {
 	{
 		if exp.cfg.DropCertificate {
 			exportData.Certificate = nil
+		}
+
+		// Mark the directory as transformed data before the first block is
+		// written, so a partially written dataset is never mistaken for
+		// original ledger data.
+		if exportData.Anonymized && !exp.anonymizedMarkerWritten {
+			markerPath := path.Join(exp.cfg.BlocksDir, AnonymizedMarkerFilename)
+			if err := os.WriteFile(markerPath, []byte("{}\n"), 0644); err != nil {
+				return fmt.Errorf("Receive(): failed to write anonymized marker %s: %w", markerPath, err)
+			}
+			exp.anonymizedMarkerWritten = true
 		}
 
 		blockFile := path.Join(exp.cfg.BlocksDir, fmt.Sprintf(exp.cfg.FilenamePattern, exportData.Round()))

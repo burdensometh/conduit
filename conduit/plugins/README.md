@@ -11,6 +11,7 @@
 
 ## Processors
 
+* [anonymizer](./processors/anonymizer)
 * [filterprocessor](./processors/filterprocessor)
 * [noop](./processors/noop)
 

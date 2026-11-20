@@ -130,3 +130,36 @@ func TestGetBlockSuccess(t *testing.T) {
 		require.Equal(t, sdk.Round(i), block.BlockHeader.Round)
 	}
 }
+
+// TestAnonymizedMarkerDetection verifies that the file reader reports
+// transformed input through the init provider and stamps the flag on blocks,
+// so a downstream anonymizer can avoid double-transforming a replayed dataset.
+func TestAnonymizedMarkerDetection(t *testing.T) {
+	dir := t.TempDir()
+	initializeTestData(t, dir, 1)
+
+	cfg := Config{BlocksDir: dir}
+	raw, err := yaml.Marshal(cfg)
+	require.NoError(t, err)
+
+	// Without the marker, data is treated as original.
+	reader := New()
+	provider := conduit.MakePipelineInitProvider(&pRound, nil, nil)
+	require.NoError(t, reader.Init(context.Background(), provider, plugins.MakePluginConfig(string(raw)), logger))
+	require.False(t, provider.IsAnonymized())
+	block, err := reader.GetBlock(0)
+	require.NoError(t, err)
+	require.False(t, block.Anonymized)
+	require.NoError(t, reader.Close())
+
+	// With the marker, the reader reports transformed input.
+	require.NoError(t, os.WriteFile(path.Join(dir, filewriter.AnonymizedMarkerFilename), []byte("{}\n"), 0644))
+	reader = New()
+	provider = conduit.MakePipelineInitProvider(&pRound, nil, nil)
+	require.NoError(t, reader.Init(context.Background(), provider, plugins.MakePluginConfig(string(raw)), logger))
+	require.True(t, provider.IsAnonymized())
+	block, err = reader.GetBlock(0)
+	require.NoError(t, err)
+	require.True(t, block.Anonymized)
+	require.NoError(t, reader.Close())
+}
