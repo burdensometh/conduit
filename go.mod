@@ -5,10 +5,13 @@ go 1.25.0
 toolchain go1.25.3
 
 require (
+	github.com/algorand/avm-abi v0.2.0
 	github.com/algorand/go-algorand-sdk/v2 v2.14.0
 	github.com/algorand/go-codec/codec v1.1.10
 	github.com/algorand/indexer/v3 v3.11.0
 	github.com/google/uuid v1.6.0
+	github.com/jackc/pgconn v1.14.3
+	github.com/jackc/pgtype v1.14.0
 	github.com/jackc/pgx/v4 v4.18.2
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/prometheus/client_golang v1.19.0
@@ -22,7 +25,6 @@ require (
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/Microsoft/go-winio v0.5.2 // indirect
-	github.com/algorand/avm-abi v0.2.0 // indirect
 	github.com/algorand/falcon v0.1.0 // indirect
 	github.com/algorand/oapi-codegen v1.12.0-algorand.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
@@ -45,13 +47,11 @@ require (
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgconn v1.14.3 // indirect
 	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
-	github.com/jackc/pgtype v1.14.0 // indirect
 	github.com/jackc/puddle v1.3.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/labstack/echo/v4 v4.13.4 // indirect

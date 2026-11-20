@@ -1,0 +1,50 @@
+name: app_events
+config:
+    # Pgsql connection string
+    # See https://github.com/jackc/pgconn for more details
+    connection-string: "host= port=5432 user= password= dbname="
+
+    # Maximum connection number for the connection pool.
+    # 0 uses the driver default.
+    max-conn: 10
+
+    # The application ids whose logs are decoded. Logs from top-level and
+    # inner application call transactions of these applications are inspected.
+    app-ids: [1234]
+
+    # The events to decode. Each event gets a table named
+    # "app_event_<name>" with one typed "arg_<name>" column per argument
+    # plus provenance columns (round, app_id, txn_index, intra_path,
+    # log_index, tx_id, log_bytes).
+    events:
+        # An ARC-28 event declared by its signature. The 4 byte marker and
+        # the argument types are derived from the signature.
+        - name: transfer
+          signature: "Transfer(address,address,uint64)"
+          # Optional argument names, used for the "arg_" prefixed columns.
+          args:
+            - name: sender
+            - name: receiver
+            - name: amount
+
+        # An event declared with an explicit 4 byte marker (hex or base64)
+        # and typed arguments.
+        - name: swap
+          selector: "0x979289a2"
+          args:
+            - name: amount_in
+              type: uint64
+            - name: amount_out
+              type: uint64
+            - name: pool
+              type: address
+
+    # Policy for logs of watched applications whose 4 byte marker matches no
+    # configured event: "keep" (default) stores them in the
+    # "app_events_unmatched" table, "drop" discards them, "fail" rejects the
+    # round.
+    unknown-logs: keep
+
+    # Policy for logs whose marker matches an event but whose payload cannot
+    # be ABI decoded: "keep" (default), "drop" or "fail".
+    invalid-logs: keep
