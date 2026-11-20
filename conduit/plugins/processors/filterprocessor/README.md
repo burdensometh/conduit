@@ -65,6 +65,16 @@ config:
     # Whether the expression searches inner transactions for matches.
     search-inner: true
 
+    # Predicate scope used when searching inner transactions. Only has an
+    # effect when search-inner is enabled.
+    # - "per-field" (default): each sub-expression recurses through the inner
+    #   transaction tree on its own, so different sub-expressions can be
+    #   satisfied by different transactions.
+    # - "whole-expression": the complete any/all/none expression is evaluated
+    #   against a single transaction node at a time and recursion into inner
+    #   transactions only happens after the node fails the whole expression.
+    inner-match-mode: per-field
+
     # Whether to include the entire transaction group when the filter
     # conditions are met.
     omit-group-transactions: true
@@ -76,6 +86,31 @@ config:
             expression-type: "equal"
             expression: "ADDRESS"
 ```
+
+## Predicate scope and inner transactions
+
+With `search-inner: true` the filter walks the inner transaction tree attached
+to each top-level transaction. The `inner-match-mode` setting controls the
+scope in which an `any`/`all`/`none` expression is evaluated during that walk.
+
+* `per-field` (the default, historical behavior): every sub-expression performs
+  its own recursive search. This means two sub-expressions of the same filter
+  can be satisfied by **different** transactions. For example, with an
+  `all` filter requiring a sender and an amount, the sender could match one
+  inner transaction while the amount matches another (or the outer
+  transaction), and the filter would still report a match for the top-level
+  transaction.
+* `whole-expression`: the complete `any`/`all`/`none` expression is evaluated
+  against a **single transaction node at a time**. Only when that node fails to
+  satisfy the whole expression does the filter recurse into its inner
+  transactions and re-evaluate the complete expression there. A match can no
+  longer be assembled from predicates that hold on different transactions.
+
+When a match is found (at the top level or anywhere in the inner transaction
+tree), the top-level transaction is retained, together with the rest of its
+transaction group unless `omit-group-transactions` is set. The block header is
+immutable and is never modified; only the resulting payset is exported.
+
 
 ## Examples
 

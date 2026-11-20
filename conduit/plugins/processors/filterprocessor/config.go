@@ -6,6 +6,7 @@ package filterprocessor
 
 import (
 	"github.com/algorand/conduit/conduit/plugins/processors/filterprocessor/expression"
+	"github.com/algorand/conduit/conduit/plugins/processors/filterprocessor/fields"
 )
 
 //Name: conduit_processors_filter
@@ -37,6 +38,19 @@ type SubConfig struct {
 type Config struct {
 	// <code>search-inner</code> configures the filter processor to recursively search inner transactions for expressions.
 	SearchInner bool `yaml:"search-inner"`
+	/* <code>inner-match-mode</code> controls the predicate scope used while searching inner transactions.<br/>
+	It only has an effect when <code>search-inner</code> is enabled.
+	<ul>
+		<li><code>per-field</code> (default): the legacy behavior. Each sub-expression performs its own
+		recursive search through the inner transaction tree, so different sub-expressions of an
+		any/all/none filter can be satisfied by different transactions.</li>
+		<li><code>whole-expression</code>: the complete any/all/none expression is evaluated against a
+		single transaction node at a time. The node must satisfy the whole expression before the
+		filter recurses into its inner transactions, preventing a match from being assembled out of
+		predicates that hold on different transactions.</li>
+	</ul>
+	*/
+	InnerMatchMode fields.InnerMatchMode `yaml:"inner-match-mode"`
 	// <code>omit-group-transactions</code> configures the filter processor to return the matched transaction without its grouped transactions.
 	OmitGroupTransactions bool `yaml:"omit-group-transactions"`
 	/* <code>filters</code> are a list of SubConfig objects with an operation acting as the string key in the map

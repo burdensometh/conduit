@@ -17,23 +17,31 @@ type Searcher struct {
 	SearchInner bool
 }
 
-// This function is ONLY to be used by the filter.field function.
-// The reason being is that without validation of the tag (which is provided by
-// MakeFieldSearcher) then this can panic
-func (f Searcher) search(input *sdk.SignedTxnWithAD) (bool, error) {
-
+// searchAtNode evaluates the expression against the supplied transaction node
+// only. It never recurses into the node's inner transactions, which lets the
+// caller guarantee that every predicate of a filter expression is evaluated
+// against the same transaction node.
+func (f Searcher) searchAtNode(input *sdk.SignedTxnWithAD) (bool, error) {
 	val, err := LookupFieldByTag(f.Tag, input)
 	if err != nil {
 		return false, err
 	}
 
-	b, err := f.Exp.Match(val)
+	return f.Exp.Match(val)
+}
+
+// This function is ONLY to be used by the filter.field function.
+// The reason being is that without validation of the tag (which is provided by
+// MakeFieldSearcher) then this can panic
+func (f Searcher) search(input *sdk.SignedTxnWithAD) (bool, error) {
+
+	b, err := f.searchAtNode(input)
 	if err != nil {
 		return false, err
 	}
 
 	if b {
-		return true, err
+		return true, nil
 	} else if f.SearchInner {
 		// Search for matches in inner transactions
 		var innerMatch bool

@@ -58,6 +58,14 @@ func (a *FilterProcessor) Init(ctx context.Context, _ data.InitProvider, cfg plu
 		return fmt.Errorf("filter processor init error: %w", err)
 	}
 
+	// Default to the legacy per-field recursive search for backward compatibility.
+	if a.cfg.InnerMatchMode == "" {
+		a.cfg.InnerMatchMode = fields.PerFieldInnerMatchMode
+	}
+	if !fields.ValidInnerMatchMode(string(a.cfg.InnerMatchMode)) {
+		return fmt.Errorf("filter processor Init(): inner-match-mode was not a valid value: %s", a.cfg.InnerMatchMode)
+	}
+
 	// configMaps is the "- any: ...." portion of the filter config
 	for _, configMaps := range a.cfg.Filters {
 
@@ -96,9 +104,11 @@ func (a *FilterProcessor) Init(ctx context.Context, _ data.InitProvider, cfg plu
 			}
 
 			ff := fields.Filter{
-				Op:        fields.Operation(key),
-				Searchers: searcherList,
-				OmitGroup: a.cfg.OmitGroupTransactions,
+				Op:             fields.Operation(key),
+				Searchers:      searcherList,
+				OmitGroup:      a.cfg.OmitGroupTransactions,
+				SearchInner:    a.cfg.SearchInner,
+				InnerMatchMode: a.cfg.InnerMatchMode,
 			}
 
 			a.FieldFilters = append(a.FieldFilters, ff)
