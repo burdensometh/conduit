@@ -55,6 +55,10 @@ type pipelineImpl struct {
 	profFile *os.File
 	err      error
 	errMu    sync.RWMutex
+	// completed is set when a finite range run has been fully drained: every
+	// round in the configured interval was exported and all completion
+	// callbacks ran. Guarded by errMu.
+	completed bool
 
 	initProvider *data.InitProvider
 
@@ -80,7 +84,36 @@ var (
 func (p *pipelineImpl) Error() error {
 	p.errMu.RLock()
 	defer p.errMu.RUnlock()
-	return p.err
+	if p.err != nil {
+		return p.err
+	}
+	// In finite range mode, terminating before the configured interval has
+	// been fully processed is not a success. Surface the cancellation cause
+	// so that callers get a clear result instead of a silent clean exit.
+	if _, finite := p.finiteRange(); finite && !p.completed && p.ctx != nil {
+		if cause := context.Cause(p.ctx); cause != nil {
+			return cause
+		}
+	}
+	return nil
+}
+
+// finiteRange returns the final round and true when the pipeline is
+// configured to process a finite, closed interval of rounds
+// [next-round, final-round] (e.g. historical backfill) instead of following
+// new rounds indefinitely.
+func (p *pipelineImpl) finiteRange() (uint64, bool) {
+	if p.cfg != nil && p.cfg.ConduitArgs != nil && p.cfg.ConduitArgs.FinalRound != 0 {
+		return p.cfg.ConduitArgs.FinalRound, true
+	}
+	return 0, false
+}
+
+// setCompleted marks a finite range run as fully drained and exported.
+func (p *pipelineImpl) setCompleted() {
+	p.errMu.Lock()
+	defer p.errMu.Unlock()
+	p.completed = true
 }
 
 func (p *pipelineImpl) joinError(err error) {
@@ -298,6 +331,14 @@ func (p *pipelineImpl) Init() error {
 		p.logger.Infof("Initializing to pipeline round %d.", p.pipelineMetadata.NextRound)
 	}
 
+	if finalRound, finite := p.finiteRange(); finite {
+		if finalRound < p.pipelineMetadata.NextRound {
+			p.logger.Warnf("Finite range mode: final round %d is before the next round %d. The pipeline will exit without processing any rounds.", finalRound, p.pipelineMetadata.NextRound)
+		} else {
+			p.logger.Infof("Finite range mode: processing rounds [%d, %d], then draining and exiting.", p.pipelineMetadata.NextRound, finalRound)
+		}
+	}
+
 	// InitProvider
 	round := sdk.Round(p.pipelineMetadata.NextRound)
 
@@ -475,7 +516,15 @@ func (p *pipelineImpl) importerHandler(importer importers.Importer, roundChan <-
 			case <-p.ctx.Done():
 				p.logger.Infof("importer handler exiting. lastRnd=%d", lastRnd)
 				return
-			case rnd := <-roundChan:
+			case rnd, ok := <-roundChan:
+				if !ok {
+					// Finite range mode: the final round has been delivered.
+					// Close the output channel so that downstream stages
+					// drain and shut down instead of being cancelled.
+					p.logger.Infof("importer handler: round channel closed after round %d, draining pipeline.", lastRnd)
+					close(blkOutChan)
+					return
+				}
 				lastRnd = rnd
 				waitTime := time.Since(startRound)
 				totalSelectWait += waitTime
@@ -525,7 +574,14 @@ func (p *pipelineImpl) processorHandler(idx int, proc processors.Processor, blkI
 			case <-p.ctx.Done():
 				p.logger.Infof("processor[%d] %s handler exiting lastRnd=%d", idx, proc.Metadata().Name, lastRnd)
 				return
-			case blk := <-blkInChan:
+			case blk, ok := <-blkInChan:
+				if !ok {
+					// Finite range mode: the previous stage has drained.
+					// Forward the shutdown by closing the output channel.
+					p.logger.Infof("processor[%d] %s handler: input channel closed after round %d, draining.", idx, proc.Metadata().Name, lastRnd)
+					close(blkOutChan)
+					return
+				}
 				waitTime := time.Since(selectStart)
 				totalSelectWait += waitTime
 				p.logger.Tracef("processor[%d] %s handler received block data for round %d after wait of %s", idx, proc.Metadata().Name, lastRnd, waitTime)
@@ -586,7 +642,15 @@ func (p *pipelineImpl) exporterHandler(exporter exporters.Exporter, blkChan plug
 			case <-p.ctx.Done():
 				p.logger.Infof("exporter handler exiting lastRnd=%d", lastRound)
 				return
-			case blk := <-blkChan:
+			case blk, ok := <-blkChan:
+				if !ok {
+					// Finite range mode: every round in the configured
+					// interval has been exported and all completion
+					// callbacks have run. The run is complete.
+					p.setCompleted()
+					p.logger.Infof("exporter %s handler: block channel closed, pipeline complete after round %d.", eName, lastRound)
+					return
+				}
 				waitTime := time.Since(selectStart)
 				totalSelectWait += waitTime
 				p.logger.Tracef("exporter handler received block data for round %d after wait of %s", lastRound, waitTime)
@@ -680,7 +744,21 @@ func (p *pipelineImpl) Start() {
 		rnd := startRound
 		totalFeedWait := time.Duration(0)
 		defer p.logger.Debugf("round channel feed exiting. lastRnd=%d totalFeedWait=%dms", rnd, totalFeedWait.Milliseconds())
+		finalRound, finite := p.finiteRange()
 		for {
+			if finite && rnd > finalRound {
+				// Finite range mode: every round in [startRound, finalRound]
+				// has been handed to the importer. Close the channel so the
+				// pipeline drains stage by stage instead of being cancelled
+				// while the last rounds are still in flight.
+				if rnd == startRound {
+					p.logger.Infof("Finite range mode: final round %d precedes next round %d, nothing to process.", finalRound, startRound)
+				} else {
+					p.logger.Infof("Finite range mode: delivered final round %d, closing round channel to drain the pipeline.", finalRound)
+				}
+				close(roundChan)
+				return
+			}
 			selectStart := time.Now()
 			p.logger.Infof("Pipeline round kickoff: %v", rnd)
 			p.logger.Tracef("pushing round %d into roundChan", rnd)

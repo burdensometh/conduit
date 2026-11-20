@@ -32,6 +32,12 @@ var DefaultMetricsPrefix = "conduit"
 type Args struct {
 	ConduitDataDir    string `yaml:"data-dir"`
 	NextRoundOverride uint64 `yaml:"next-round-override"`
+	// FinalRound enables finite range mode when non-zero. The pipeline
+	// processes the closed interval [next-round, FinalRound], drains each
+	// stage, and exits once every round has been exported and all completion
+	// callbacks have run. When zero, the pipeline follows new rounds
+	// indefinitely.
+	FinalRound uint64 `yaml:"final-round"`
 }
 
 // NameConfigPair is a generic structure used across plugin configuration ser/de

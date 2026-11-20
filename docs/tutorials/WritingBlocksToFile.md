@@ -126,6 +126,13 @@ fast-forward to a more recent block. Similarly, we want to be able to run Condui
 most relevant and useful for us.
 To run conduit from a round other than 0, use the `--next-round-override` or `-r` flag. Because we set the admin token for our node, Conduit is able to run fast-catchup for us.
 
+> [!NOTE]
+> To backfill a fixed range of rounds instead of following new rounds indefinitely, use the `--final-round` flag.
+> Conduit processes the closed interval `[next-round, final-round]`, drains the pipeline, and exits successfully once
+> every round in the range has been exported. A missing or failing round in the interval fails the run, and
+> `metadata.json`'s `next-round` always reflects the last completed round, so an interrupted backfill can be resumed
+> by simply re-running the same command.
+
 Now let's run the command!
 
 ```bash

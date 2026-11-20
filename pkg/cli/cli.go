@@ -165,6 +165,7 @@ Detailed documentation is online: https://github.com/algorand/conduit`,
 	}
 	cmd.Flags().StringVarP(&cfg.ConduitDataDir, "data-dir", "d", "", "Set the Conduit data directory. If not set the CONDUIT_DATA_DIR environment variable is used.")
 	cmd.Flags().Uint64VarP(&cfg.NextRoundOverride, "next-round-override", "r", 0, "Set the starting round. Overrides next-round in metadata.json. Some exporters do not support overriding the starting round.")
+	cmd.Flags().Uint64Var(&cfg.FinalRound, "final-round", 0, "Run a finite range of rounds ending at this round (inclusive), then drain the pipeline and exit. The run fails if any round in the range cannot be processed. The default of 0 follows new rounds indefinitely.")
 	cmd.Flags().BoolVarP(&vFlag, "version", "v", false, "Print the Conduit version.")
 	// No need for shell completions.
 	cmd.CompletionOptions.DisableDefaultCmd = true

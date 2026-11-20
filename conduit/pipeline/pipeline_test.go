@@ -52,6 +52,7 @@ type mockImporter struct {
 	genesis         sdk.Genesis
 	finalRound      sdk.Round
 	returnError     bool
+	failOnRound     uint64
 	onCompleteError bool
 	subsystem       string
 	rndOverride     uint64
@@ -79,7 +80,7 @@ func (m *mockImporter) Metadata() plugins.Metadata {
 
 func (m *mockImporter) GetBlock(rnd uint64) (data.BlockData, error) {
 	var err error
-	if m.returnError {
+	if m.returnError || (m.failOnRound != 0 && rnd == m.failOnRound) {
 		err = fmt.Errorf("importer")
 	}
 	m.Called(rnd)
@@ -170,11 +171,13 @@ type mockExporter struct {
 	cfg             plugins.PluginConfig
 	finalRound      sdk.Round
 	returnError     bool
+	failOnRound     uint64
 	onCompleteError bool
 	rndOverride     uint64
 	rndReqErr       error
 	receiveCalls    int
 	onCompleteCalls int
+	receivedRnds    []uint64
 }
 
 func (m *mockExporter) Metadata() plugins.Metadata {
@@ -198,10 +201,11 @@ func (m *mockExporter) Close() error {
 
 func (m *mockExporter) Receive(exportData data.BlockData) error {
 	var err error
-	if m.returnError {
+	if m.returnError || (m.failOnRound != 0 && exportData.Round() == m.failOnRound) {
 		err = fmt.Errorf("receive")
 	}
 	m.receiveCalls++
+	m.receivedRnds = append(m.receivedRnds, exportData.Round())
 	m.Called(exportData)
 	return err
 }
